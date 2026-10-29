@@ -1,101 +1,63 @@
-# Vim-For-Docs
-[![Install Vim for Docs (Chrome)](https://img.shields.io/badge/Install-Chrome%20Extension-blue?style=for-the-badge&logo=googlechrome)](https://chromewebstore.google.com/detail/vim-for-docs/kablhddalgenjgmoaignkfcphgmjnkno?authuser=0&hl=en)
-[![Chrome Web Store Users](https://img.shields.io/chrome-web-store/users/kablhddalgenjgmoaignkfcphgmjnkno?style=for-the-badge)](https://chromewebstore.google.com/detail/vim-for-docs/kablhddalgenjgmoaignkfcphgmjnkno)
+# gvim
 
-[![Install Vim for Docs (Firefox)](https://img.shields.io/badge/Install-Firefox%20Extension-orange?style=for-the-badge&logo=firefox)](https://addons.mozilla.org/en-US/firefox/addon/vim-for-docs/)
-[![Firefox Add-on Users](https://img.shields.io/amo/users/vim-for-docs?style=for-the-badge)](https://addons.mozilla.org/en-US/firefox/addon/vim-for-docs/)
+an opinionated version of [vim-for-docs](https://github.com/greenstorm5417/Vim-For-Docs). it is a browser extension that adds vim-style modal editing to Google Docs: the same idea as upstream, with different defaults and its own set of commands.
 
-[![GitHub stars](https://img.shields.io/github/stars/greenstorm5417/Vim-For-Docs?style=for-the-badge)](https://github.com/greenstorm5417/Vim-For-Docs/stargazers)
-[![GitHub issues](https://img.shields.io/github/issues/greenstorm5417/Vim-For-Docs?style=for-the-badge)](https://github.com/greenstorm5417/Vim-For-Docs/issues)
+this fork is not published to the extension stores. load it unpacked.
 
-Vim-For-Docs is a browser extension that brings Vim-like navigation and editing functionality to Google Docs. With Vim-For-Docs, you can navigate, edit, and manipulate your documents using familiar Vim commands—now with a new default "vim" theme that displays a full-width overlay at the bottom. The left side of the overlay shows the current mode, while the right side shows the pending motion buffer.
+## requirements
 
-> **Note:** This extension intercepts keystrokes before they reach Google Docs’ internal editor and remaps them to simulate Vim motions. It is designed for users who love Vim’s efficient navigation and editing style.
+- Chrome, Edge, Brave, or Firefox
+- Google Docs accessibility features turned on, or the extension will not work:
+  open a doc, go to tools > accessibility, and enable screen reader support and braille support
 
-## ⚠️ Requirements
-**Important:** This extension requires Google Docs accessibility features to be enabled:
-1. Open a Google Doc
-2. Go to **Tools → Accessibility**
-3. Enable **Screen reader support**
-4. Enable **Braille support**
+## install
 
-Without these settings enabled, the extension will not function properly.
+1. clone this repository.
+2. load the extension from the `src` folder:
+   - Chrome: open `chrome://extensions`, turn on developer mode, click load unpacked, and select `src`.
+   - Firefox: open `about:debugging#/runtime/this-firefox`, click load temporary add-on, and select `src/manifest.json`.
+3. open a Google Doc, enable screen reader support and braille support under tools > accessibility, then reload the doc.
+4. click the toolbar icon and make sure the extension is enabled.
 
-## Features
-- Vim-like navigation and editing for Google Docs.
-- Unbound Docs and browser shortcuts pass through in every mode, including Visual mode: `Ctrl+Alt+1` for headings, `Ctrl+Shift+C` for word count, and macOS `Cmd+L` / `Cmd+R`.
-- Customizable motions, operators, commands, and text objects via a built‑in Motions Editor.
-- Clean, non-destructive editor UX: no row deletion, IDs locked, keys edited in modals.
-- Live apply of settings and motions through storage listeners (no tabs permission).
-- Permissions: storage and clipboard writing when explicitly using the `+` or `*` register.
+## usage
 
-## Configuration & Motions Editor
-- Open the popup → Motions Editor to customize key sequences and text object delimiters.
-- Edits are validated before saving, including supported tokens and conflicting bindings.
-- Motions are saved locally and applied to open Docs tabs. Small preferences use sync storage.
+normal mode is the default. the overlay at the bottom of the page shows the current mode on the left and the pending keys on the right.
 
-Use `<Left>`, `<Right>`, `<Up>`, `<Down>`, `<SPACE>`, `<ESC>`, `<CR>`, `<BS>`,
-`<TAB>`, `<Del>`, `<Home>`, `<End>`, `<PageUp>`, `<PageDown>`, or `<F1>`–`<F24>`
-for named keys. Modifier prefixes are `C` (Control), `A` (Alt), `M` (Meta/Command),
-and `S` (Shift), in that order: for example `<A-X>`, `<M-Z>`, `<C-S-X>`, or
-`<S-TAB>`. Use the uppercase letter itself for Shift plus a letter. Shortcuts
-intercepted by the browser or operating system cannot reach the extension.
+- navigation: `h` `j` `k` `l`, `w` `b` `e`, `0` `^` `$`, `gg` `G`, `f` `t` `;` `,`, `%`, `{` `}`, `ctrl-d` `ctrl-u` `ctrl-f` `ctrl-b`
+- editing: `i` `a` `o` `O`, `esc`, `d` `c` `y` with motions and text objects (`iw`, `aw`, `i(`, `it`), `p` `P`, `>>` `<<`, `g~` `gu` `gU`, `u`, `ctrl-r`, `.`
+- visual mode: `v` and `V`, then a motion or an operator
+- search: `/` `?` `n` `N`
+- ex commands: `:`, including substitutes such as `:s/old/new/g` and `:'<,'>s/old/new/g`
+- macros: `q{register}` to record, `q` to stop, `@{register}` to replay
+- registers: `"{register}`, with `"+` and `"*` written to the system clipboard
+- Docs formatting: space followed by `b` bold, `i` italic, `u` underline, `s` strikethrough, `c` code, `1`-`6` headings, `0` normal text, `7` numbered list, `8` bulleted list, `x` checklist, `k` link, `h` highlight, `\` clear formatting
 
-Insert sequences such as `j k` buffer typing until they match. If the sequence
-fails or times out, its ordinary typing is restored. Under **Advanced: Edit raw
-JSON**, the `settings` object also supports:
+## configuration
 
-- `mappingTimeoutMs`: insert mapping timeout, default `500` milliseconds.
-- `registerPrefix`: key introducing a register name, default `"`.
-- `allowRegisterPrefix`: set to `false` to release that key for another binding.
-- `allowCountPrefix`: set to `false` to bind digits instead of using them as counts.
-- `tokenAliases`: defaults to `{ "<C-[>": "<ESC>" }`. Set to `{}` to bind Ctrl+[ independently.
-- `cancelTokens`: keys that cancel a pending Normal/Visual sequence; defaults to `["<ESC>", "<C-C>"]`. Insert/Visual exit commands have their own editable bindings.
-- `promptSubmitTokens`: keys that submit search and Ex prompts; defaults to `["<CR>"]`.
-- `promptBackspaceTokens`: keys that erase a character in prompts; defaults to `["<BS>"]`.
+open the toolbar icon for the on/off switch, line numbers, and the theme. the motions editor lets you rebind keys, change text object delimiters, and edit the raw JSON. invalid or conflicting bindings are rejected before they are saved, and changes apply to open Docs tabs.
 
-Operator Self sequences can be rebound independently of their operators.
-Completed normal motions run immediately: `e a` retains its usual composition
-of move-to-word-end followed by append.
+keys accepted by the editor include `<Left>`, `<Right>`, `<Up>`, `<Down>`, `<SPACE>`, `<ESC>`, `<CR>`, `<BS>`, `<TAB>`, `<Del>`, `<Home>`, `<End>`, `<PageUp>`, `<PageDown>`, and `<F1>`-`<F24>`, plus `C`, `A`, `M`, and `S` modifiers in that order (for example `<C-S-X>`). shortcuts reserved by the browser or the operating system never reach the extension.
 
-## Current limitations
+## limitations
 
-- This is a Vim-like editor layer, not a complete Vim implementation. Visual block mode, Ex substitution/ranges, and keyword completion are not implemented.
-- Search temporarily selects document text to read a whole-document snapshot, limited to 1,000,000 characters. Search itself does not edit the text.
-- Insert and Replace repeats are limited to 1,000,000 characters and 10,000 edit operations. Replace counts each overwritten grapheme as an operation; a single large text insertion counts as one operation.
-- Vertical visual motions preserve their anchor across Docs' text windows. Other visual motions are cancelled if their saved offsets become invalid. Marks and jumps resolve unique text anchors across the document; changed or repeated anchor text is rejected. Last-exit restoration after reload uses a paragraph fingerprint and rejects changed or duplicate paragraphs (up to 10,000 candidate paragraphs).
-- Multi-edit commands can require multiple native undo steps.
-- Registers are held in tab memory. The `+` and `*` registers can write to the system clipboard, but pasting from them uses the last in-memory value; the extension does not read the system clipboard.
-- IME input and native toolbar edits are not fully recorded for dot-repeat or macros. Browser- and OS-reserved shortcuts cannot always be rebound.
+- search reads a whole-document snapshot of up to 1,000,000 characters.
+- a multi-step edit can need more than one native undo.
+- registers are kept in tab memory. the `+` and `*` registers write to the system clipboard but do not read from it.
+- IME input, toolbar edits, and some browser shortcuts are not captured.
+- this is a vim-like layer with its own limits, not a full Neovim.
 
-Use a disposable document when checking unfamiliar commands. If an edit fails,
-queued keys are discarded; inspect the document before continuing. A startup
-failure leaves native typing enabled and displays a retry message.
+## development
 
-## Help
-- A concise Help is available inside each edit modal.
-- For general Vim references, see https://vim.rtorr.com/.
+there is no build step; `src` is the extension. tests run directly with node:
 
-## How It Works
-Vim-For-Docs intercepts key events from the Google Docs iframe and remaps them to Vim-like motions. The extension:
-- **Maps keys:** For example, `h`, `j`, `k`, `l` for basic navigation.
-- **Handles multi-key commands:** Such as `gg` and `ge` for document navigation.
-- **Switches modes:** Between Normal, Insert, and Visual, with the "vim" theme providing a full-width overlay that shows the current mode and pending command.
-- **Simulates keystroke events:** To interact with Google Docs’ editing surface.
+```
+node tests/test-pure-engine.js
+node tests/test-neovim-bridge.js
+node tests/test-neovim-host.js
+```
 
-For a detailed look at the code, please refer to the source files.
+the last test needs `nvim` and `python3` and skips when either is missing. `native-host/` holds the native messaging host for a local Neovim engine.
 
-## Contributing
-Contributions, issues, and feature requests are welcome!  
-Feel free to check [Issues](https://github.com/greenstorm5417/Vim-For-Docs/issues) or submit a pull request.
+## credits
 
-
-
-## Links
-- **Chrome Web Store:** [Vim-For-Docs Extension](https://chromewebstore.google.com/detail/vim-for-docs/kablhddalgenjgmoaignkfcphgmjnkno)
-
-
-## Inspired By & Continued From
-Vim-For-Docs is inspired by and continues the work started in the [DocsKeys](https://github.com/tirthd16/dockeys) repository. 
-
-*Vim-For-Docs – Bringing Vim-like navigation and editing to Google Docs!*
+based on [vim-for-docs](https://github.com/greenstorm5417/Vim-For-Docs), which continues the work started in [dockeys](https://github.com/tirthd16/dockeys). licensed under the Apache License 2.0.
