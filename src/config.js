@@ -56,6 +56,14 @@
       'macro_repeat', 'surround_delete', 'surround_change', 'surround_word',
       'surround_WORD', 'visual_surround', 'ex_command', 'insert_text',
       'insert_replace_char', 'record_last_exit', 'exit_mode',
+      'docs_bold', 'docs_italic', 'docs_bold_italic', 'docs_underline',
+      'docs_strikethrough', 'docs_code', 'docs_code_block',
+      'docs_heading_1', 'docs_heading_2', 'docs_heading_3',
+      'docs_heading_4', 'docs_heading_5', 'docs_heading_6',
+      'docs_normal_text', 'docs_checklist', 'docs_numbered_list',
+      'docs_bullet_list', 'docs_link', 'docs_highlight',
+      'docs_clear_formatting', 'docs_yank_clipboard', 'docs_paste_clipboard',
+      'docs_append_semicolon',
     ],
   };
 

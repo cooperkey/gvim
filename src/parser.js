@@ -100,7 +100,7 @@
     }
 
     isPending() {
-      return !!(this.awaitingCharFor || this.awaitRegister || this.haveOperator || (this.buffer && this.buffer.length));
+      return !!(this.countStr || this.opCountStr || this.awaitingCharFor || this.awaitRegister || this.haveOperator || (this.buffer && this.buffer.length));
     }
 
     canContinue(token) {

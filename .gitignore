@@ -5,3 +5,6 @@
 # Local release planning; not part of the extension or release commit.
 /AUDIT-3.0.md
 /ROADMAP.md
+*.pem
+__pycache__/
+*.pyc

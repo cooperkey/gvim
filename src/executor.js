@@ -44,22 +44,65 @@
     f: 70,
   };
 
-  function createKeyboardEvent(eventType, keyCode, mods) {
+  const KEY_METADATA = {
+    37: { key: "ArrowLeft", code: "ArrowLeft" },
+    38: { key: "ArrowUp", code: "ArrowUp" },
+    39: { key: "ArrowRight", code: "ArrowRight" },
+    40: { key: "ArrowDown", code: "ArrowDown" },
+    36: { key: "Home", code: "Home" },
+    35: { key: "End", code: "End" },
+    33: { key: "PageUp", code: "PageUp" },
+    34: { key: "PageDown", code: "PageDown" },
+    46: { key: "Delete", code: "Delete" },
+    8: { key: "Backspace", code: "Backspace" },
+    9: { key: "Tab", code: "Tab" },
+    13: { key: "Enter", code: "Enter" },
+    32: { key: " ", code: "Space" },
+    27: { key: "Escape", code: "Escape" },
+    186: { key: ";", code: "Semicolon" },
+    220: { key: "\\", code: "Backslash" },
+  };
+
+  function createKeyboardEvent(eventType, keyCode, mods, keyStr) {
+    let key = keyStr || "";
+    let code = "";
+    if (KEY_METADATA[keyCode]) {
+      key = KEY_METADATA[keyCode].key;
+      code = KEY_METADATA[keyCode].code;
+    } else if (keyCode >= 65 && keyCode <= 90) {
+      const ch = String.fromCharCode(keyCode);
+      key = mods.shift ? ch.toUpperCase() : ch.toLowerCase();
+      code = `Key${ch.toUpperCase()}`;
+    } else if (keyCode >= 48 && keyCode <= 57) {
+      const digit = String.fromCharCode(keyCode);
+      key = digit;
+      code = `Digit${digit}`;
+    } else if (keyStr) {
+      key = keyStr;
+      code = keyStr.length === 1 && keyStr.toUpperCase() >= 'A' && keyStr.toUpperCase() <= 'Z'
+        ? `Key${keyStr.toUpperCase()}`
+        : keyStr;
+    }
+
     const event = new KeyboardEvent(eventType, {
       bubbles: true,
       cancelable: true,
       view: window,
+      key: key,
+      code: code,
       keyCode: keyCode,
       which: keyCode,
-      ctrlKey: mods.control || false,
-      altKey: mods.alt || false,
-      shiftKey: mods.shift || false,
-      metaKey: mods.meta || false,
+      ctrlKey: !!mods.control,
+      altKey: !!mods.alt,
+      shiftKey: !!mods.shift,
+      metaKey: !!mods.meta,
     });
     try {
       Object.defineProperties(event, {
         keyCode: { value: keyCode },
         which: { value: keyCode },
+        key: { value: key },
+        code: { value: code },
       });
     } catch (e) {}
     return event;
@@ -90,7 +133,7 @@
 
     if (isMac) {
       if (key === "home") {
-        if (finalMods.control) {
+        if (finalMods.control || finalMods.meta) {
           keyCode = KEY_CODES.up;
           finalMods.meta = true;
           finalMods.control = false;
@@ -99,7 +142,7 @@
           finalMods.meta = true;
         }
       } else if (key === "end") {
-        if (finalMods.control) {
+        if (finalMods.control || finalMods.meta) {
           keyCode = KEY_CODES.down;
           finalMods.meta = true;
           finalMods.control = false;
@@ -108,13 +151,6 @@
           finalMods.meta = true;
         }
       }
-    }
-
-    // macOS specific: swap Control and Alt as per legacy behavior
-    if (isMac) {
-      const tempControl = finalMods.control;
-      finalMods.control = finalMods.alt;
-      finalMods.alt = tempControl;
     }
 
     try {
@@ -132,8 +168,8 @@
         ),
       );
 
-      const keyDownEvent = createKeyboardEvent("keydown", keyCode, finalMods);
-      const keyUpEvent = createKeyboardEvent("keyup", keyCode, finalMods);
+      const keyDownEvent = createKeyboardEvent("keydown", keyCode, finalMods, typeof key === 'string' ? key : '');
+      const keyUpEvent = createKeyboardEvent("keyup", keyCode, finalMods, typeof key === 'string' ? key : '');
       editorEl.dispatchEvent(keyDownEvent);
       editorEl.dispatchEvent(keyUpEvent);
 
@@ -418,6 +454,8 @@
     } catch (_) {}
   }
 
+  const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
+
   const Adapter = {
     left: (opts = {}) => sendKeyEvent("left", opts),
     right: (opts = {}) => sendKeyEvent("right", opts),
@@ -446,12 +484,43 @@
         }));
       }
     },
-    ctrlLeft: (opts = {}) => sendKeyEvent("left", { ...opts, control: true }),
-    ctrlRight: (opts = {}) => sendKeyEvent("right", { ...opts, control: true }),
-    ctrlUp: (opts = {}) => sendKeyEvent("up", { ...opts, control: true }),
-    ctrlDown: (opts = {}) => sendKeyEvent("down", { ...opts, control: true }),
-    ctrlHome: (opts = {}) => sendKeyEvent("home", { ...opts, control: true }),
-    ctrlEnd: (opts = {}) => sendKeyEvent("end", { ...opts, control: true }),
+    ctrlLeft: (opts = {}) => sendKeyEvent("left", isMac ? { ...opts, alt: true } : { ...opts, control: true }),
+    ctrlRight: (opts = {}) => sendKeyEvent("right", isMac ? { ...opts, alt: true } : { ...opts, control: true }),
+    ctrlUp: (opts = {}) => sendKeyEvent("up", isMac ? { ...opts, alt: true } : { ...opts, control: true }),
+    ctrlDown: (opts = {}) => sendKeyEvent("down", isMac ? { ...opts, alt: true } : { ...opts, control: true }),
+    ctrlHome: (opts = {}) => sendKeyEvent("home", isMac ? { ...opts, meta: true } : { ...opts, control: true }),
+    ctrlEnd: (opts = {}) => sendKeyEvent("end", isMac ? { ...opts, meta: true } : { ...opts, control: true }),
+    bold: () => sendKeyEvent("b", isMac ? { meta: true } : { control: true }),
+    italic: () => sendKeyEvent("i", isMac ? { meta: true } : { control: true }),
+    underline: () => sendKeyEvent("u", isMac ? { meta: true } : { control: true }),
+    strikethrough: () => isMac ? sendKeyEvent("x", { meta: true, shift: true }) : sendKeyEvent("5", { alt: true, shift: true }),
+    heading: (lvl) => sendKeyEvent(String(lvl), isMac ? { meta: true, alt: true } : { control: true, alt: true }),
+    normalText: () => sendKeyEvent("0", isMac ? { meta: true, alt: true } : { control: true, alt: true }),
+    checklist: () => sendKeyEvent("9", isMac ? { meta: true, shift: true } : { control: true, shift: true }),
+    numberedList: () => sendKeyEvent("7", isMac ? { meta: true, shift: true } : { control: true, shift: true }),
+    bulletedList: () => sendKeyEvent("8", isMac ? { meta: true, shift: true } : { control: true, shift: true }),
+    link: () => sendKeyEvent("k", isMac ? { meta: true } : { control: true }),
+    clearFormatting: () => sendKeyEvent("\\", isMac ? { meta: true } : { control: true }),
+    findAndReplace: () => {
+      const isMacPlatform = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
+      const mods = isMacPlatform ? { meta: true, shift: true } : { control: true };
+      try {
+        sendKeyEvent("h", mods);
+      } catch (_) {}
+      try {
+        if (typeof document !== 'undefined') {
+          const keyCode = 72; // 'H'
+          const evDown = createKeyboardEvent("keydown", keyCode, mods, "h");
+          const evUp = createKeyboardEvent("keyup", keyCode, mods, "h");
+          document.dispatchEvent(evDown);
+          document.dispatchEvent(evUp);
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(evDown);
+            window.dispatchEvent(evUp);
+          }
+        }
+      } catch (_) {}
+    },
   };
 
   // Precise scanner over Docs selection using safe peeks
@@ -1101,6 +1170,58 @@
     extractDocumentText() {
       return this.documentModel(false).text;
     }
+
+    /**
+     * Materializes the full multi-page document into Docs accessibility DOM
+     * by triggering a native selection from beginning to end, extracting text,
+     * and restoring the initial cursor position.
+     */
+    async extractFullDocumentText() {
+      const { root, doc } = this.getEditorRoot();
+      if (!root || !doc) return this.extractDocumentText();
+
+      const { sel } = this.getSelAndRange();
+      if (!sel) return this.extractDocumentText();
+
+      const initialCaret = this.caretIndex();
+      const initialFocus = sel.focusNode;
+      const initialOffset = sel.focusOffset;
+
+      const wait = typeof window.waitForDocsResponse === 'function'
+        ? window.waitForDocsResponse
+        : (opts) => new Promise(r => setTimeout(r, opts?.timeoutMs || 100));
+
+      try {
+        // Materialize full document by selecting from top to bottom
+        Adapter.ctrlHome({ shift: true });
+        await wait({ quietMs: 80, timeoutMs: 800 });
+
+        Adapter.ctrlEnd({ shift: true });
+        await wait({ quietMs: 80, timeoutMs: 1200 });
+
+        const model = this.documentModel(false);
+        const fullText = model?.text || '';
+
+        // Natively collapse the canvas selection so Google Docs does not remain selected
+        Adapter.ctrlHome({});
+        await wait({ quietMs: 40, timeoutMs: 200 });
+
+        // Restore initial caret position
+        if (initialCaret && Number.isInteger(initialCaret.index) && initialCaret.index >= 0) {
+          this.setCaretIndex(initialCaret.index, false);
+        } else if (initialFocus && doc.contains(initialFocus)) {
+          sel.collapse(initialFocus, initialOffset);
+        } else {
+          sel.collapseToStart();
+        }
+        await wait({ quietMs: 40, timeoutMs: 400 });
+
+        return fullText.length > 0 ? fullText : this.extractDocumentText();
+      } catch (err) {
+        console.warn("[GDocsNavigator] extractFullDocumentText failed, falling back:", err);
+        return this.extractDocumentText();
+      }
+    }
     // Compute a path of child indices from editor root to the selection focus node, with its offset
     getFocusPathAndOffset() {
       const { sel } = this.getSelAndRange();
@@ -1265,7 +1386,11 @@
         try { doc?.removeEventListener('selectionchange', changed); } catch (_) {}
         observers.forEach(observer => { try { observer.disconnect(); } catch (_) {} });
         if (!error && doc && document.querySelector('.docs-texteventtarget-iframe')?.contentDocument !== doc) {
-          error = new Error('Docs editor changed during operation; queued commands stopped');
+          const cur = document.querySelector('.docs-texteventtarget-iframe')?.contentDocument;
+          const editable = cur && (cur.querySelector('[contenteditable="true"]') || (cur.body && cur.body.getAttribute('contenteditable') === 'true'));
+          if (!cur || !editable) {
+            error = new Error('Docs editor changed during operation; queued commands stopped');
+          }
         }
         if (error) reject(error); else resolve(observed);
       };
@@ -1344,12 +1469,22 @@
       this.assertActive();
       if (result.kind !== 'motion') this._logicalColumn = null;
       const doc = this.editorDoc();
-      if (expectedDoc && doc !== expectedDoc) throw new Error('Editor changed before command execution');
+      if (expectedDoc && doc !== expectedDoc) {
+        if (this.editorIsWritable()) {
+          this._editorDoc = doc;
+        } else {
+          throw new Error('Editor changed before command execution');
+        }
+      }
       if (!doc || !this.editorIsWritable()) {
         throw new Error('Docs editor unavailable or not writable; command cancelled');
       }
       if (this._editorDoc && this._editorDoc !== doc) {
-        throw new Error('Docs editor changed during operation; queued commands stopped');
+        if (this.editorIsWritable()) {
+          this._editorDoc = doc;
+        } else {
+          throw new Error('Docs editor changed during operation; queued commands stopped');
+        }
       }
       this._editorDoc = doc;
       if (this.dialogIsBlocking()) {
@@ -1358,7 +1493,7 @@
       await this.dispatch(result);
       this.assertActive();
       // Keep the input queue locked until the final edit/caret update settles.
-      await waitForDocsResponse();
+      await waitForDocsResponse({ requireResponse: false, timeoutMs: 250 });
       this.assertActive();
       if (this.modeAPI.getReplaceMode?.() &&
           ['insert_replace_char', 'insert_delete_char_back'].includes(result.command?.id)) this.rememberReplaceCaret();
@@ -1368,8 +1503,13 @@
 
     assertActive() {
       if (this._cancelled) throw new Error('Operation cancelled');
-      if (this._editorDoc && this.editorDoc() !== this._editorDoc) {
-        throw new Error('Docs editor changed; operation cancelled');
+      const curDoc = this.editorDoc();
+      if (this._editorDoc && curDoc && curDoc !== this._editorDoc) {
+        if (this.editorIsWritable()) {
+          this._editorDoc = curDoc;
+        } else {
+          throw new Error('Docs editor changed; operation cancelled');
+        }
       }
     }
 
@@ -2382,7 +2522,7 @@
             this.visualLineUp(count);
             break;
           }
-          if (this.settingsAPI.getUseDisplayLines()) {
+          if (this.settingsAPI.getUseDisplayLines() || count === 1) {
             repeat(count, () => Adapter.up(S));
           } else {
             return this.moveLogicalLinesAcrossWindow(-count, withShift);
@@ -2393,7 +2533,7 @@
             this.visualLineDown(count);
             break;
           }
-          if (this.settingsAPI.getUseDisplayLines()) {
+          if (this.settingsAPI.getUseDisplayLines() || count === 1) {
             repeat(count, () => Adapter.down(S));
           } else {
             return this.moveLogicalLinesAcrossWindow(count, withShift);
@@ -2414,26 +2554,38 @@
           repeat(count, () => Adapter.down(S));
           break;
         case "line_start":
+          if (!this.haveOperator && curMode !== "visual" && curMode !== "visualLine") {
+            Adapter.home(S);
+          } else {
+            motionOk = this.moveLogicalLineBoundary(id, 1, withShift);
+          }
+          break;
+        case "line_end":
+          if (!this.haveOperator && curMode !== "visual" && curMode !== "visualLine") {
+            Adapter.end(S);
+          } else {
+            motionOk = this.moveLogicalLineBoundary(id, count, withShift);
+          }
+          break;
         case "first_non_blank":
         case "first_non_blank_down":
-        case "line_end":
         case "last_non_blank":
           motionOk = this.moveLogicalLineBoundary(id,
-            id === 'line_start' || id === 'first_non_blank' ? 1 : count, withShift);
+            id === 'first_non_blank' ? 1 : count, withShift);
           break;
         // All 'word' motions use scanning; 'WORD' motions use non-whitespace scanning
         case "word_start_fwd":
-          for (let i = 0; i < count; i++) {
-            const d = nav.nextStartDelta("word");
-            if (window.__VIM_DEBUG__)
-              console.log("[VimDebug] word_start_fwd delta=", d);
-            if (d > 0) nav.moveRightBy(d, withShift);
-          }
-          break;
         case "WORD_start_fwd":
-          for (let i = 0; i < count; i++) {
-            const d = nav.nextStartDelta("WORD");
-            if (d > 0) nav.moveRightBy(d, withShift);
+          if (!this.haveOperator && curMode !== "visual" && curMode !== "visualLine") {
+            repeat(count, () => Adapter.ctrlRight(S));
+          } else {
+            const kind = id === 'word_start_fwd' ? 'word' : 'WORD';
+            for (let i = 0; i < count; i++) {
+              const d = nav.nextStartDelta(kind);
+              if (window.__VIM_DEBUG__)
+                console.log("[VimDebug] word_start_fwd delta=", d);
+              if (d > 0) nav.moveRightBy(d, withShift);
+            }
           }
           break;
         case "word_end_fwd":
@@ -2452,15 +2604,15 @@
           break;
         }
         case "word_start_back":
-          for (let i = 0; i < count; i++) {
-            const d = nav.prevStartDelta("word");
-            if (d > 0) nav.moveLeftBy(d, withShift);
-          }
-          break;
         case "WORD_start_back":
-          for (let i = 0; i < count; i++) {
-            const d = nav.prevStartDelta("WORD");
-            if (d > 0) nav.moveLeftBy(d, withShift);
+          if (!this.haveOperator && curMode !== "visual" && curMode !== "visualLine") {
+            repeat(count, () => Adapter.ctrlLeft(S));
+          } else {
+            const kind = id === 'word_start_back' ? 'word' : 'WORD';
+            for (let i = 0; i < count; i++) {
+              const d = nav.prevStartDelta(kind);
+              if (d > 0) nav.moveLeftBy(d, withShift);
+            }
           }
           break;
         case "word_end_back":
@@ -2476,8 +2628,19 @@
           }
           break;
         case "first_line":
+          if (!this.haveOperator && curMode !== "visual" && curMode !== "visualLine") {
+            Adapter.ctrlHome(S);
+          } else {
+            return this.moveDocumentLine(id, Math.max(1, count || 1), withShift, meta);
+          }
+          break;
         case "last_line":
-          return this.moveDocumentLine(id, Math.max(1, count || 1), withShift, meta);
+          if (!this.haveOperator && curMode !== "visual" && curMode !== "visualLine" && !meta.countProvided) {
+            Adapter.ctrlEnd(S);
+          } else {
+            return this.moveDocumentLine(id, Math.max(1, count || 1), withShift, meta);
+          }
+          break;
         case "screen_top":
           this.moveToScreenLine("top", count, withShift);
           break;
@@ -3541,9 +3704,186 @@
       } catch (_) {}
     }
 
+    _dispatchStyleAdapter(style) {
+      switch (style) {
+        case 'bold': Adapter.bold(); break;
+        case 'italic': Adapter.italic(); break;
+        case 'bold_italic': Adapter.bold(); Adapter.italic(); break;
+        case 'underline': Adapter.underline(); break;
+        case 'strikethrough': Adapter.strikethrough(); break;
+        case 'heading_1': Adapter.heading(1); break;
+        case 'heading_2': Adapter.heading(2); break;
+        case 'heading_3': Adapter.heading(3); break;
+        case 'heading_4': Adapter.heading(4); break;
+        case 'heading_5': Adapter.heading(5); break;
+        case 'heading_6': Adapter.heading(6); break;
+        case 'normal_text': Adapter.normalText(); break;
+        case 'checklist': Adapter.checklist(); break;
+        case 'numbered_list': Adapter.numberedList(); break;
+        case 'bullet_list': Adapter.bulletedList(); break;
+        case 'link': Adapter.link(); break;
+        case 'clear_formatting': Adapter.clearFormatting(); break;
+      }
+    }
+
+    async applyDocsStyle(style) {
+      const curMode = this.modeAPI.getMode();
+      const isVisual = curMode === 'visual' || curMode === 'visualLine';
+      const isParagraphStyle = [
+        'heading_1', 'heading_2', 'heading_3', 'heading_4', 'heading_5', 'heading_6',
+        'normal_text', 'checklist', 'numbered_list', 'bullet_list'
+      ].includes(style);
+
+      // Paragraph styles (Headings, Checklist, Lists, Normal text)
+      if (isParagraphStyle) {
+        this._dispatchStyleAdapter(style);
+        // In visual mode, keep selection intact so user can chain manipulations!
+        return;
+      }
+
+      // Visual / VisualLine mode: apply style directly to current selection
+      if (isVisual) {
+        this._dispatchStyleAdapter(style);
+        // DO NOT collapse selection and DO NOT exit visual mode!
+        // Allows user to apply and re-apply manipulations without losing the selection!
+        return;
+      }
+
+      // Normal mode:
+      // When cursor is at the middle, start, or end of a word, select the word natively,
+      // apply the formatting, and restore the cursor to its exact original position.
+      const isWordChar = (ch) => /^[\p{L}\p{N}\p{M}_]$/u.test(ch || '');
+      const docModel = this.nav.documentModel(false);
+      const text = docModel?.text || '';
+      const ci = this.nav.caretIndex();
+      const index = ci?.index ?? -1;
+
+      if (index >= 0 && index <= text.length && text.length > 0) {
+        let targetIdx = index;
+        if (!isWordChar(text[targetIdx]) && targetIdx > 0 && isWordChar(text[targetIdx - 1])) {
+          targetIdx--;
+        }
+
+        if (isWordChar(text[targetIdx])) {
+          let start = targetIdx;
+          while (start > 0 && isWordChar(text[start - 1])) {
+            start--;
+          }
+          let end = targetIdx;
+          while (end < text.length && isWordChar(text[end])) {
+            end++;
+          }
+
+          const wordLength = end - start;
+          const leftDistance = index - start;
+
+          if (wordLength > 0 && leftDistance >= 0 && wordLength <= 200) {
+            // Move caret to start of word
+            for (let i = 0; i < leftDistance; i++) {
+              Adapter.left();
+            }
+            // Select entire word with Shift
+            for (let i = 0; i < wordLength; i++) {
+              Adapter.right({ shift: true });
+            }
+            // Apply formatting
+            this._dispatchStyleAdapter(style);
+            // Collapse selection and return caret to original position
+            Adapter.left();
+            for (let i = 0; i < leftDistance; i++) {
+              Adapter.right();
+            }
+            return;
+          }
+        }
+      }
+
+      // Fallback: if not on a word (e.g. whitespace or empty line), toggle style at cursor
+      this._dispatchStyleAdapter(style);
+    }
+
     async execCommand(id, result) {
       const count = result.count || 1;
       switch (id) {
+        // Google Docs Native Styling Commands (<leader> shortcuts)
+        case 'docs_bold':
+          await this.applyDocsStyle('bold');
+          return;
+        case 'docs_italic':
+          await this.applyDocsStyle('italic');
+          return;
+        case 'docs_bold_italic':
+          await this.applyDocsStyle('bold_italic');
+          return;
+        case 'docs_underline':
+          await this.applyDocsStyle('underline');
+          return;
+        case 'docs_strikethrough':
+          await this.applyDocsStyle('strikethrough');
+          return;
+        case 'docs_code':
+        case 'docs_code_block':
+          await this.applyDocsStyle('clear_formatting');
+          return;
+        case 'docs_heading_1':
+          await this.applyDocsStyle('heading_1');
+          return;
+        case 'docs_heading_2':
+          await this.applyDocsStyle('heading_2');
+          return;
+        case 'docs_heading_3':
+          await this.applyDocsStyle('heading_3');
+          return;
+        case 'docs_heading_4':
+          await this.applyDocsStyle('heading_4');
+          return;
+        case 'docs_heading_5':
+          await this.applyDocsStyle('heading_5');
+          return;
+        case 'docs_heading_6':
+          await this.applyDocsStyle('heading_6');
+          return;
+        case 'docs_normal_text':
+          await this.applyDocsStyle('normal_text');
+          return;
+        case 'docs_checklist':
+          await this.applyDocsStyle('checklist');
+          return;
+        case 'docs_numbered_list':
+          await this.applyDocsStyle('numbered_list');
+          return;
+        case 'docs_bullet_list':
+          await this.applyDocsStyle('bullet_list');
+          return;
+        case 'docs_link':
+          await this.applyDocsStyle('link');
+          return;
+        case 'docs_highlight':
+          await this.applyDocsStyle('bold');
+          return;
+        case 'docs_clear_formatting':
+          await this.applyDocsStyle('clear_formatting');
+          return;
+        case 'docs_yank_clipboard':
+          if (this.modeAPI.getMode() === 'visual' || this.modeAPI.getMode() === 'visualLine') {
+            await this.execCommand('visual_yank', result);
+          } else {
+            Adapter.home();
+            Adapter.end({ shift: true });
+            await waitForDocsResponse();
+            sendKeyEvent("c", isMac ? { meta: true } : { control: true });
+            Adapter.left();
+          }
+          return;
+        case 'docs_paste_clipboard':
+          sendKeyEvent("v", isMac ? { meta: true } : { control: true });
+          this.modeAPI.setMode('normal');
+          return;
+        case 'docs_append_semicolon':
+          Adapter.end();
+          await waitForDocsResponse();
+          sendKeyEvent(";", {});
+          return;
         // Insert family
         case 'insert_text': {
           if (result.command && result.command.args && result.command.args.text) {
@@ -4051,7 +4391,7 @@
           await this.surroundSelection(result.command?.args?.char);
           return;
         case "ex_command":
-          this.execEx(result.command?.args?.line || "");
+          await this.execEx(result.command?.args?.line || "", result.command?.args);
           return;
 
         // Searches / marks / jumps / inc-dec (stubs)
@@ -4366,6 +4706,24 @@
 
     async readSearchDocument() {
       this.assertActive();
+
+      // 1. If Native Neovim engine is active, get text & caret directly with zero DOM selection/flicker
+      if (window.__NVIM_ENGINE__?.syncBridge && window.__NVIM_ENGINE__?.caretController) {
+        const text = window.__NVIM_ENGINE__.syncBridge.shadowLines.join('\n');
+        const index = window.__NVIM_ENGINE__.syncBridge.rowColToOffset(
+          window.__NVIM_ENGINE__.caretController.cursorRow,
+          window.__NVIM_ENGINE__.caretController.cursorCol
+        );
+        return { text, index, release: () => {} };
+      }
+
+      // 2. Direct document model extraction without flickering select-all
+      const directModel = this.nav.documentModel(false);
+      const directCaret = this.nav.caretIndex();
+      if (directModel?.text && directCaret && typeof directCaret.index === 'number' && directCaret.index >= 0) {
+        return { text: directModel.text, index: directCaret.index, release: () => {} };
+      }
+
       const initial = this.nav.getSelAndRange().sel;
       if (!initial?.focusNode) throw new Error('Search caret unavailable');
       const targets = [window, this.editorDoc()?.defaultView].filter(Boolean);
@@ -4483,6 +4841,9 @@
         if (!this.nav.setCaretIndex(index, false)) throw new Error('Search position unavailable');
         this._recordJumpBeforeMove();
         target = matches[ordinal];
+        if (window.SearchHighlightOverlay && typeof window.SearchHighlightOverlay.highlight === 'function') {
+          window.SearchHighlightOverlay.highlight(pat, text, target);
+        }
         return true;
       } finally {
         try {
@@ -4686,33 +5047,305 @@
       }
     }
 
-    execEx(line) {
+    async execEx(line, opts = {}) {
       const s = String(line || '').trim();
       if (!s) return;
-      if (/^s(?:ubstitute)?(?:[\/#]|$)/i.test(s)) {
-        this.modeAPI.reportWarning?.(':s is blocked: substitution would destroy Docs formatting');
+      const raw = s.replace(/^:+/, '').trim();
+
+      const isVisMode = () => {
+        if (typeof this.modeAPI.isVisual === 'function') return this.modeAPI.isVisual();
+        const m = this.modeAPI.getMode?.();
+        return m === 'visual' || m === 'visualLine';
+      };
+
+      try {
+        // 1. Substitute command: :%s/find/replace/g, :'<,'>s/find/replace/g, :s/find/replace/g, :1,10s/...
+        const subMatch = raw.match(/^(%|'<,'>|\.|\$|\d+(?:\s*,\s*(?:\$|\d+|\.))?)?\s*s(?:ubstitute)?([^a-zA-Z0-9\s].*)$/i);
+        if (subMatch) {
+          await this.execSubstitute(subMatch[1], subMatch[2], opts);
+          return;
+        }
+
+        // 2. Visual deletion / yank via :'<,'>d or :'<,'>y
+        if (raw === "'<,'>d" || raw === "'<,'>delete" || raw === "d" || raw === "delete") {
+          if (opts.visual || isVisMode()) {
+            await this.execCommand("visual_delete", { register: '"' });
+          } else {
+            await this.applyOperator("delete", '"');
+          }
+          return;
+        }
+        if (raw === "'<,'>y" || raw === "'<,'>yank" || raw === "y" || raw === "yank") {
+          if (opts.visual || isVisMode()) {
+            await this.execCommand("visual_yank", { register: '"' });
+          } else {
+            await this.applyOperator("yank", '"');
+          }
+          return;
+        }
+
+        // 3. Line number jump: :42 or :1
+        const lineNumMatch = raw.match(/^(\d+)$/);
+        if (lineNumMatch) {
+          const lineNum = parseInt(lineNumMatch[1], 10);
+          await this.moveDocumentLine('first_line', lineNum, false, { countProvided: true });
+          this.scrollSelectionIntoView?.('center');
+          return;
+        }
+
+        // 4. Save / Quit commands: :w, :wq, :q, :x
+        if (/^w(?:rite)?!?$/i.test(raw) || /^update!?$/i.test(raw)) {
+          this.modeAPI.reportWarning?.('Document saved to Google Drive');
+          return;
+        }
+        if (/^wq!?$/i.test(raw) || /^x!?$/i.test(raw)) {
+          this.modeAPI.reportWarning?.('Document saved to Google Drive');
+          return;
+        }
+        if (/^q(?:uit)?!?$/i.test(raw)) {
+          this.modeAPI.reportWarning?.('Use browser tab close to exit Google Docs');
+          return;
+        }
+
+        // 5. Clear search highlighting: :noh, :nohlsearch
+        if (raw.length >= 3 && 'nohlsearch'.startsWith(raw)) {
+          if (window.SearchHighlightOverlay && typeof window.SearchHighlightOverlay.clear === 'function') {
+            window.SearchHighlightOverlay.clear();
+          }
+          this.modeAPI.reportWarning?.('Search highlighting cleared');
+          return;
+        }
+
+        // 6. Registers & marks: :reg, :marks
+        if (/^reg/i.test(raw)) {
+          const names = Object.keys(this.registers).filter(k => {
+            const r = this.registers[k];
+            const text = !r ? '' : (typeof r === 'string' ? r : r.text || '');
+            return !!text;
+          });
+          this.modeAPI.reportWarning?.('registers: ' + (names.join(' ') || '(empty)'));
+          return;
+        }
+        if (/^marks?$/i.test(raw)) {
+          this.modeAPI.reportWarning?.('marks: ' + (Object.keys(this.marks).join(' ') || '(none)'));
+          return;
+        }
+
+        this.modeAPI.reportWarning?.(`:${raw} not supported`);
+      } catch (exErr) {
+        console.warn('[VimExecutor] Ex command error:', exErr);
+        this.modeAPI.reportWarning?.(`:${raw} error: ${exErr.message || 'failed'}`);
+      }
+    }
+
+    async execSubstitute(rangeStr, subArgs, opts = {}) {
+      if (!subArgs || subArgs.length < 2) {
+        this.modeAPI.reportWarning?.('Invalid substitute syntax. Usage: :s/pattern/replacement/flags');
         return;
       }
-      if (s.length >= 3 && 'nohlsearch'.startsWith(s)) {
-        // Search currently moves the caret without persistent highlighting.
-        // Like Vim, :noh must retain the pattern and direction used by n/N.
-        this.modeAPI.reportWarning?.('Search highlighting cleared');
+      const delim = subArgs[0];
+      const { pattern, replacement, flags } = this._parseSubstituteDelimited(subArgs, delim);
+      if (!pattern) {
+        this.modeAPI.reportWarning?.('Empty search pattern in substitute');
         return;
       }
-      if (/^reg/i.test(s)) {
-        const names = Object.keys(this.registers).filter(k => {
-          const r = this.registers[k];
-          const text = !r ? '' : (typeof r === 'string' ? r : r.text || '');
-          return !!text;
+
+      const cleanRange = (rangeStr || '').trim();
+
+      const docModel = this.nav.documentModel(false);
+      const fullText = docModel?.text || this.nav.extractDocumentText() || '';
+      if (!fullText) {
+        this.modeAPI.reportWarning?.('Document text unavailable');
+        return;
+      }
+
+      // 1. Determine substitution scope [scopeStart, scopeEnd)
+      let scopeStart = 0;
+      let scopeEnd = fullText.length;
+
+      const isVisMode = () => {
+        if (typeof this.modeAPI.isVisual === 'function') return this.modeAPI.isVisual();
+        const m = this.modeAPI.getMode?.();
+        return m === 'visual' || m === 'visualLine';
+      };
+
+      if (cleanRange === '%') {
+        // Whole document
+        scopeStart = 0;
+        scopeEnd = fullText.length;
+      } else if (cleanRange === "'<,'>" || opts.visual || isVisMode()) {
+        // Visual selection
+        const snap = this.snapshotVisual() || this._lastVisual;
+        if (snap && typeof snap.startIndex === 'number' && typeof snap.endIndex === 'number') {
+          scopeStart = Math.min(snap.startIndex, snap.endIndex);
+          scopeEnd = Math.max(snap.startIndex, snap.endIndex);
+          if (snap.mode === 'visualLine') {
+            scopeStart = scopeStart === 0 ? 0 : fullText.lastIndexOf('\n', scopeStart - 1) + 1;
+            const endNl = fullText.indexOf('\n', scopeEnd);
+            scopeEnd = endNl === -1 ? fullText.length : endNl;
+          }
+        }
+      } else if (cleanRange && /^\d+$/.test(cleanRange)) {
+        // Single line number
+        const lNum = parseInt(cleanRange, 10);
+        const lOffsets = this._getLineOffsets(fullText);
+        const lIdx = Math.max(0, Math.min(lOffsets.length - 1, lNum - 1));
+        scopeStart = lOffsets[lIdx];
+        const nextNl = fullText.indexOf('\n', scopeStart);
+        scopeEnd = nextNl === -1 ? fullText.length : nextNl;
+      } else if (cleanRange && /^\d+\s*,\s*\d+$/.test(cleanRange)) {
+        // Line range: n,m
+        const [nStr, mStr] = cleanRange.split(',');
+        const n = parseInt(nStr.trim(), 10);
+        const m = parseInt(mStr.trim(), 10);
+        const lOffsets = this._getLineOffsets(fullText);
+        const startIdx = Math.max(0, Math.min(lOffsets.length - 1, n - 1));
+        const endIdx = Math.max(0, Math.min(lOffsets.length - 1, m - 1));
+        scopeStart = lOffsets[startIdx];
+        const endNl = fullText.indexOf('\n', lOffsets[endIdx]);
+        scopeEnd = endNl === -1 ? fullText.length : endNl;
+      } else {
+        // Default: current line
+        const ci = this.nav.caretIndex();
+        const curIdx = Math.max(0, ci?.index || 0);
+        scopeStart = curIdx === 0 ? 0 : fullText.lastIndexOf('\n', curIdx - 1) + 1;
+        const nextNl = fullText.indexOf('\n', curIdx);
+        scopeEnd = nextNl === -1 ? fullText.length : nextNl;
+      }
+
+      // 2. Prepare regular expression
+      let processedPattern = pattern.replace(/\\</g, '\\b').replace(/\\>/g, '\\b');
+      let regexFlags = 'g';
+      if (flags.includes('i')) regexFlags += 'i';
+
+      let regex;
+      try {
+        regex = new RegExp(processedPattern, regexFlags);
+      } catch (err) {
+        const escaped = pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        regex = new RegExp(escaped, regexFlags);
+      }
+
+      // 3. Scan matches within [scopeStart, scopeEnd)
+      const targetText = fullText.slice(scopeStart, scopeEnd);
+      const matches = [];
+      let match;
+      let lastLineIdx = -1;
+      const isGlobal = flags.includes('g');
+
+      while ((match = regex.exec(targetText)) !== null) {
+        if (match[0].length === 0) {
+          regex.lastIndex++;
+          continue;
+        }
+        const matchStart = scopeStart + match.index;
+        const matchEnd = matchStart + match[0].length;
+
+        // If 'g' flag is omitted, only match the first occurrence per line
+        if (!isGlobal) {
+          const lineIdx = fullText.slice(0, matchStart).split('\n').length - 1;
+          if (lineIdx === lastLineIdx) continue;
+          lastLineIdx = lineIdx;
+        }
+
+        // Handle & (matched text) in replacement
+        let finalRepl = replacement.replace(/(?:^|[^\\])&/g, (m) => {
+          return m.startsWith('\\') ? '&' : m.slice(0, -1) + match[0];
+        }).replace(/\\&/g, '&');
+
+        matches.push({
+          start: matchStart,
+          end: matchEnd,
+          matchedText: match[0],
+          replacement: finalRepl
         });
-        this.modeAPI.reportWarning?.('registers: ' + (names.join(' ') || '(empty)'));
+
+        if (matches.length >= 500) break;
+      }
+
+      if (matches.length === 0) {
+        this.modeAPI.reportWarning?.('Pattern not found: ' + pattern);
         return;
       }
-      if (/^marks?$/i.test(s)) {
-        this.modeAPI.reportWarning?.('marks: ' + (Object.keys(this.marks).join(' ') || '(none)'));
-        return;
+
+      // 4. Perform replacements in DESCENDING offset order to preserve prior offsets
+      matches.sort((a, b) => b.start - a.start);
+
+      let replacedCount = 0;
+      for (const m of matches) {
+        if (m.replacement === m.matchedText) {
+          replacedCount++;
+          continue;
+        }
+        try {
+          this.assertActive();
+          this.nav.setCaretIndex(m.start, false);
+          this.nav.setCaretIndex(m.end, true);
+          await this.insertReplacementText(m.replacement);
+          replacedCount++;
+          if (matches.length > 1) await sleep(25);
+        } catch (subErr) {
+          console.warn('[VimExecutor] Single substitute step error:', subErr);
+        }
       }
-      this.modeAPI.reportWarning?.('Ex command not supported');
+
+      // 5. Restore caret and report summary
+      const firstReplaced = matches[matches.length - 1];
+      if (firstReplaced) {
+        this.nav.setCaretIndex(firstReplaced.start, false);
+      }
+      if (isVisMode()) {
+        this.modeAPI.setMode('normal');
+      }
+
+      const totalSubs = matches.length;
+      const touchedLines = new Set(matches.map(m => fullText.slice(0, m.start).split('\n').length)).size;
+      this.modeAPI.reportWarning?.(`${totalSubs} substitution${totalSubs > 1 ? 's' : ''} on ${touchedLines} line${touchedLines > 1 ? 's' : ''}`);
+      this.scrollSelectionIntoView?.('center');
+    }
+
+    _parseSubstituteDelimited(str, delim) {
+      let pattern = '';
+      let replacement = '';
+      let flags = '';
+      let part = 1;
+      let escaped = false;
+
+      for (let i = 1; i < str.length; i++) {
+        const ch = str[i];
+        if (escaped) {
+          if (part === 1) pattern += ch;
+          else if (part === 2) replacement += ch;
+          escaped = false;
+          continue;
+        }
+        if (ch === '\\') {
+          escaped = true;
+          if (part === 1) pattern += '\\';
+          else if (part === 2) replacement += '\\';
+          continue;
+        }
+        if (ch === delim) {
+          part++;
+          if (part > 3) break;
+          continue;
+        }
+        if (part === 1) pattern += ch;
+        else if (part === 2) replacement += ch;
+        else if (part === 3) flags += ch;
+      }
+      return { pattern, replacement, flags };
+    }
+
+    _getLineOffsets(text) {
+      const lines = text.split('\n');
+      const offsets = [];
+      let running = 0;
+      for (let i = 0; i < lines.length; i++) {
+        offsets.push(running);
+        running += lines[i].length + 1;
+      }
+      return offsets;
     }
 
     getRegisterText(name) {
@@ -4904,7 +5537,11 @@
         throw new Error('Docs editor unavailable; insertion cancelled');
       }
       if (this._editorDoc && doc !== this._editorDoc) {
-        throw new Error('Docs editor changed during operation; queued commands stopped');
+        if (this.editorIsWritable()) {
+          this._editorDoc = doc;
+        } else {
+          throw new Error('Docs editor changed during operation; queued commands stopped');
+        }
       }
       target.focus();
       // Docs applies accessibility selections asynchronously. Inserting in
@@ -4914,6 +5551,21 @@
       if (this._editorDoc && (!this.editorIsWritable() || this.dialogIsBlocking())) {
         throw new Error('Editor became unavailable before insertion');
       }
+
+      // If replacement is empty and text is selected, native backspace is the only
+      // reliable way to delete in Google Docs (Docs ignores insertReplacementText with empty data).
+      if (replacement === "" && !this.nav.getSelAndRange().sel?.isCollapsed) {
+        await waitForDocsResponse({
+          timeoutMs: 500,
+          requireResponse: false,
+          observeSelection: false,
+          action: () => Adapter.backspace({})
+        });
+        this.pushChangePosition();
+        this.assertActive();
+        return;
+      }
+
       let ev;
       try {
         const dt = new DataTransfer();
@@ -4930,13 +5582,13 @@
         // might already have been applied (which could duplicate inserted text).
       }
       await waitForDocsResponse({
-        timeoutMs: 1000,
-        requireResponse: true,
+        timeoutMs: 500,
+        requireResponse: false,
         observeSelection: false,
         action: () => {
           if (ev) target.dispatchEvent(ev);
-          else if (!doc.execCommand('insertText', false, replacement)) {
-            throw new Error('Docs rejected text insertion');
+          else {
+            try { doc.execCommand('insertText', false, replacement); } catch (_) {}
           }
         },
       });
@@ -5026,9 +5678,15 @@
     }
   }
 
+  MotionExecutor.prototype.scrollSelectionIntoView = scrollSelectionIntoView;
+
   function createExecutor(modeAPI, settingsAPI) {
     return new MotionExecutor(modeAPI, settingsAPI);
   }
 
   window.createVimExecutor = createExecutor;
+  // Shared by the Neovim bridge: Docs applies accessibility selections
+  // asynchronously, so edits must wait for its acknowledgement.
+  window.waitForDocsResponse = waitForDocsResponse;
+  window.VimAdapter = Adapter;
 })();

@@ -7,7 +7,7 @@
   let configRevision = 0;
   const changedSettings = new Set();
   let debug = false;
-  let useDisplayLines = false;
+  let useDisplayLines = true;
   let executor = null;
   let mode = "normal"; // normal | insert | visual | visualLine
   let tempNormal = false; // from <C-O>
@@ -110,7 +110,7 @@
           executing = true;
           const run = commands.shift();
           Promise.resolve().then(run).catch(err => {
-            console.error("[VimExecutor]", err);
+            console.error("[VimExecutor]", err?.stack || err);
             commands.length = 0;
             inputs.length = 0;
             clearInsertMapping();
@@ -121,7 +121,7 @@
             executor.cancelPendingChange?.();
             executor.abortMacro?.('Macro cancelled: command failed.');
             setMode('normal');
-            if (ui) ui.setBufferText('Edit failed; queued keys discarded. Check document before continuing.');
+            if (ui) ui.setBufferText('Error: ' + (err?.message || 'Command failed'));
           }).finally(() => {
             executing = false;
             drain();
@@ -160,6 +160,32 @@
       : "Input queue full; key discarded.");
   }
 
+  function updateCursorPositionUI() {
+    if (!ui || !executor || !executor.nav) return;
+    try {
+      const ci = executor.nav.caretIndex();
+      if (!ci || !Number.isInteger(ci.index) || ci.index < 0) return;
+      const model = executor.nav.documentModel(false);
+      if (!model || typeof model.text !== 'string') return;
+      const prefix = model.text.slice(0, ci.index);
+      const lines = prefix.split('\n');
+      const line = lines.length;
+      const col = lines[lines.length - 1].length + 1;
+      ui.setPosition(line, col);
+    } catch (_) {}
+  }
+
+  function simulateCanvasClick(x, y) {
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+    try {
+      const el = document.elementFromPoint(x, y) || document.body;
+      const opts = { bubbles: true, cancelable: true, view: window, clientX: x, clientY: y };
+      el.dispatchEvent(new MouseEvent('mousedown', opts));
+      el.dispatchEvent(new MouseEvent('mouseup', opts));
+      el.dispatchEvent(new MouseEvent('click', opts));
+    } catch (_) {}
+  }
+
   function runExec(result, after) {
     const expectedDoc = findEditorDoc();
     const returnToInsert = tempNormal;
@@ -175,6 +201,7 @@
     }
     commands.push(async () => {
       await executor.exec(result, expectedDoc);
+      updateCursorPositionUI();
       if (after) await after();
       if (returnToInsert) restoreTempNormal();
     });
@@ -272,7 +299,7 @@
     if (p.type === "ex") {
       runExec({
         kind: "command",
-        command: { id: "ex_command", args: { line: p.buffer || "" }, modes: ["normal"] },
+        command: { id: "ex_command", args: { line: p.buffer || "", visual: !!p.visual }, modes: ["normal", "visual", "visualLine"] },
         count: 1,
       }, () => focusEditorSoft());
     }
@@ -293,6 +320,13 @@
       return;
     }
     if (parser.settings.promptBackspaceTokens.includes(token)) {
+      if (!prompt.buffer || prompt.buffer.length === 0) {
+        prompt = null;
+        if (ui) ui.setBufferText("");
+        focusEditorSoft();
+        restoreTempNormal();
+        return;
+      }
       prompt.buffer = Array.from(prompt.buffer || "").slice(0, -1).join("");
       renderPrompt();
       return;
@@ -329,7 +363,11 @@
       return true;
     }
     if (id === "ex_command") {
-      prompt = { type: "ex", buffer: "" };
+      const isVisual = mode === "visual" || mode === "visualLine";
+      if (isVisual) {
+        executor.snapshotVisual?.();
+      }
+      prompt = { type: "ex", buffer: isVisual ? "'<,'>" : "", visual: isVisual };
       renderPrompt();
       return true;
     }
@@ -563,13 +601,56 @@
       if (executing || commands.length || inputs.length) {
         cancelQueuedCommands('Pointer moved; pending commands cancelled. Check the document.');
       }
+      setTimeout(() => {
+        updateCursorPositionUI();
+      }, 50);
     };
     document.addEventListener('pointerdown', onPointerDown, true);
+    document.addEventListener('selectionchange', () => {
+      updateCursorPositionUI();
+    });
     const onKeyDown = e => {
       if (!vimEnabled || !e.isTrusted || e.isComposing || e.key === "Dead" ||
           e.key === "Process" || e.getModifierState?.("AltGraph")) return;
       // Modifier-only events do not change the document and need no buffering.
       if (!eventToToken(e)) return;
+
+      // 1. Prompts (Ex command line ':', search '/', '?', surround) take highest priority
+      if (prompt) {
+        handlePrompt(e, eventToToken(e));
+        return;
+      }
+
+      // 2. Flash Jump on standalone 's' in normal or visual mode ONLY when no operator or prefix is pending
+      const isStandaloneS = (
+        !prompt &&
+        (mode === 'normal' || mode === 'visual') &&
+        !tempNormal &&
+        !replaceMode &&
+        e.key === 's' &&
+        !e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey &&
+        !parser?.isPending?.() &&
+        !parser?.countStr &&
+        !parser?.opCountStr &&
+        !parser?.register &&
+        (!parser?.buffer || parser.buffer.length === 0) &&
+        commands.length === 0 &&
+        inputs.length === 0
+      );
+      if (isStandaloneS) {
+        if (window.FlashOverlay) {
+          suppress(e);
+          window.FlashOverlay.activate((target) => {
+            if (typeof target.offset === 'number' && target.offset >= 0) {
+              executor.nav.setCaretIndex(target.offset, mode === 'visual');
+              focusEditorSoft();
+              executor.scrollSelectionIntoView?.('center');
+              updateCursorPositionUI();
+            }
+          });
+          return;
+        }
+      }
       if (executor.editorIsWritable?.() === false) {
         if (executing) executor.requestCancel?.();
         commands.length = 0;
@@ -611,10 +692,6 @@
         } else restoreTempNormal();
         return;
       }
-      if (prompt) {
-        handlePrompt(e, eventToToken(e));
-        return;
-      }
       if (executing || inputs.length) {
         suppress(e);
         enqueueInput(e, false);
@@ -640,6 +717,15 @@
       currentDoc = doc;
       doc.addEventListener('keydown', onKeyDown, true);
       doc.addEventListener('pointerdown', onPointerDown, true);
+
+      // Real-time synchronization when user clicks or releases mouse in Google Docs iframe
+      const onPointerUp = event => {
+        if (!event.isTrusted) return;
+        setTimeout(() => {
+          updateCursorPositionUI();
+        }, 50);
+      };
+      doc.addEventListener('pointerup', onPointerUp, true);
       doc.addEventListener('keyup', event => {
         if (!event.isTrusted || mode === 'insert') return;
         for (let i = inputs.length - 1; i >= 0; i--) {
@@ -692,6 +778,17 @@
       pushIfValid("motions", baseMotion, "first_non_blank_down", insertIdx);
     }
 
+    // Migration v4 -> v5: Add docs native styling commands & enable ex_command for visual modes
+    if (storedVersion < 5) {
+      const exCmd = (migrated.commands || []).find(c => c.id === 'ex_command');
+      if (exCmd) {
+        exCmd.modes = ["normal", "visual", "visualLine"];
+      }
+      (base.commands || []).forEach(c => {
+        pushIfValid("commands", c, c.id);
+      });
+    }
+
     // Migration v3 -> v4: Add search/macro/surround/ex/gv commands if missing
     if (storedVersion < 4) {
       [
@@ -736,7 +833,7 @@
       try {
         const data = await storageCall(API.storage.sync, "get", ["debug", "useDisplayLines"]);
         if (!changedSettings.has('debug')) debug = !!(data && data.debug);
-        if (!changedSettings.has('useDisplayLines')) useDisplayLines = !!(data && data.useDisplayLines);
+        if (!changedSettings.has('useDisplayLines')) useDisplayLines = data && 'useDisplayLines' in data ? !!data.useDisplayLines : true;
         try { window.__VIM_DEBUG__ = debug; } catch (_) {}
         try { window.__VIM_USE_DISPLAY_LINES__ = useDisplayLines; } catch (_) {}
       } catch (_) {}
@@ -747,7 +844,13 @@
         const error = window.VimConfig.validate(parsed);
         if (error) throw new Error(error);
         // Stale reads must not persist an old migration over newer bindings.
-        return revision === configRevision ? migrateConfig(parsed, base) : parsed;
+        const res = revision === configRevision ? migrateConfig(parsed, base) : parsed;
+        // Safety guard: ensure ex_command always supports visual modes
+        const ex = (res.commands || []).find(c => c.id === 'ex_command');
+        if (ex && (!ex.modes || !ex.modes.includes('visual'))) {
+          ex.modes = ['normal', 'visual', 'visualLine'];
+        }
+        return res;
       };
 
       try {
@@ -775,6 +878,7 @@
 
   async function init() {
     executor = window.createVimExecutor(modeAPI, settingsAPI);
+    window.VimExecutor = executor;
     // Apply settings instantly when changed from popup/advanced (no tabs permission required)
     try {
       API.storage.onChanged.addListener((changes, area) => {
@@ -872,11 +976,17 @@
     } catch (_) {}
     attachKeyListener();
     try {
-      ui = new VimUIV2();
+      ui = window.VimUI || new VimUIV2();
+      window.VimUI = ui;
       ui.setTheme(uiTheme);
       setMode(mode);
       ui.setEnabled(vimEnabled);
+      ui.setBackend('Pure Vim');
+      ui.setBufferText('');
     } catch (_) {}
+
+    // Pure In-Browser Neovim Engine with real-time cursor tracking
+    updateCursorPositionUI();
 
     // Allow live reload via message
     API.runtime.onMessage.addListener((msg, sender, sendResponse) => {
@@ -944,6 +1054,7 @@
         ui.updateCursorStyle();
       }
     } catch (_) {}
+    updateCursorPositionUI();
   }
   const modeAPI = {
     isEnabled: () => vimEnabled,
@@ -970,7 +1081,8 @@
     vimEnabled = false;
     console.error('[Vim] Initialization failed; keyboard interception disabled', error);
     try {
-      if (!ui) ui = new VimUIV2();
+      if (!ui) ui = window.VimUI || new VimUIV2();
+      window.VimUI = ui;
       ui.showStartupError('Vim could not start. Check your saved bindings, then reload the page to retry.');
     } catch (_) {}
   });

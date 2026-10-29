@@ -1,0 +1,9 @@
+{
+  "name": "com.vimfordocs.neovim",
+  "description": "Vim for Docs Native Neovim Host",
+  "path": "/Users/lando/Vim-For-Docs/native-host/host.py",
+  "type": "stdio",
+  "allowed_origins": [
+    "chrome-extension://eehdcoloojhmdcpeaplimdebfbmalind/"
+  ]
+}

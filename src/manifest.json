@@ -1,10 +1,14 @@
 {
   "manifest_version": 3,
   "name": "Vim-For-Docs",
-  "description": "An implementation of Vim motions for Google Docs",
-  "version": "3.0",
+  "description": "An authentic Neovim engine and motions for Google Docs",
+  "version": "3.1",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEApfri1zE5fuP/q6PKDVlfdGO8F20QHldATKthpKQKAm13IiUOIXFRIV5usoI8BNHZnp4rTZFq60lPZ5Bz8rtWmCOopQ0RQdP3iWvxR/3cr60KfMXtz9DnboslrHpP5YVUqNPlaVHinnVlFYo37N6lQhlwyrLmXCwacFv0jbastXxu+EY8wb9JQ0wfEx+xj1TrCbzSi0R3i9VotQH+RJcRe2OtaXj7xj5MQSoVYpe4NXhpuk/fFysGhWrKGZ6Dt0GG2PiLdLWF4QY3NgSy+hC5+22tPEcqLQrRlhjcnpLB5+VFqR8SiAmEm7fpS2VPUDXC1HyJqLsq8UW1H4R8dMhDLwIDAQAB",
   "minimum_chrome_version": "97",
   "permissions": ["storage", "clipboardWrite"],
+  "background": {
+    "service_worker": "background.js"
+  },
   "browser_specific_settings": {
     "gecko": {
       "id": "greenstorm@vimfordocs.org",
@@ -32,6 +36,9 @@
       "js": [
         "config.js",
         "parser.js",
+        "ui/visual-block.js",
+        "ui/search-highlight.js",
+        "ui/flash-overlay.js",
         "executor.js",
         "ui.js",
         "line-numbers.js",
